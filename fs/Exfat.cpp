@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "F2fs.h"
+#include "Exfat.h"
 #include "Utils.h"
 
 #include <android-base/logging.h>
@@ -29,43 +29,49 @@ using android::base::StringPrintf;
 
 namespace android {
 namespace vold {
-namespace f2fs {
+namespace exfat {
 
-static const char* kMkfsPath = "/system/bin/make_f2fs";
-static const char* kFsckPath = "/system/bin/fsck.f2fs";
+static const char* kMkfsPath = "/system/bin/mkfs.exfat";
+static const char* kFsckPath = "/system/bin/fsck.exfat";
+static const char* kMountPath = "/system/bin/mount.exfat";
 
 bool IsSupported() {
     return access(kMkfsPath, X_OK) == 0
             && access(kFsckPath, X_OK) == 0
-            && IsFilesystemSupported("f2fs");
+            && access(kMountPath, X_OK) == 0
+            && IsFilesystemSupported("exfat");
 }
 
-status_t Check(const std::string& source, bool trusted) {
+status_t Check(const std::string& source) {
     std::vector<std::string> cmd;
     cmd.push_back(kFsckPath);
-    cmd.push_back("-a");
     cmd.push_back(source);
 
-    return ForkExecvp(cmd, trusted ? sFsckContext : sFsckUntrustedContext);
+    // Exfat devices are currently always untrusted
+    return ForkExecvp(cmd, sFsckUntrustedContext);
 }
 
-status_t Mount(const std::string& source, const std::string& target) {
+status_t Mount(const std::string& source, const std::string& target, bool ro,
+        bool remount, bool executable, int ownerUid, int ownerGid, int permMask) {
+    char mountData[255];
+
     const char* c_source = source.c_str();
     const char* c_target = target.c_str();
-    unsigned long flags = MS_NOATIME | MS_NODEV | MS_NOSUID | MS_DIRSYNC;
 
-    int res = mount(c_source, c_target, "f2fs", flags, NULL);
-    if (res != 0) {
-        PLOG(ERROR) << "Failed to mount " << source;
-        if (errno == EROFS) {
-            res = mount(c_source, c_target, "f2fs", flags | MS_RDONLY, NULL);
-            if (res != 0) {
-                PLOG(ERROR) << "Failed to mount read-only " << source;
-            }
-        }
-    }
+    sprintf(mountData,
+            "noatime,nodev,nosuid,dirsync,uid=%d,gid=%d,fmask=%o,dmask=%o,%s,%s",
+            ownerUid, ownerGid, permMask, permMask,
+            (executable ? "exec" : "noexec"),
+            (ro ? "ro" : "rw"));
 
-    return res;
+    std::vector<std::string> cmd;
+    cmd.push_back(kMountPath);
+    cmd.push_back("-o");
+    cmd.push_back(mountData);
+    cmd.push_back(c_source);
+    cmd.push_back(c_target);
+
+    return ForkExecvp(cmd);
 }
 
 status_t Format(const std::string& source) {
@@ -76,6 +82,6 @@ status_t Format(const std::string& source) {
     return ForkExecvp(cmd);
 }
 
-}  // namespace f2fs
+}  // namespace exfat
 }  // namespace vold
 }  // namespace android
