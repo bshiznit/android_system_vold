@@ -56,8 +56,10 @@ int main(int argc, char** argv) {
     LOG(INFO) << "Vold 3.0 (the awakening) firing up";
 
     LOG(VERBOSE) << "Detected support for:"
+            << (android::vold::IsFilesystemSupported("exfat") ? " exfat" : "")
             << (android::vold::IsFilesystemSupported("ext4") ? " ext4" : "")
             << (android::vold::IsFilesystemSupported("f2fs") ? " f2fs" : "")
+            << (android::vold::IsFilesystemSupported("ntfs") ? " ntfs" : "")
             << (android::vold::IsFilesystemSupported("vfat") ? " vfat" : "");
 
     VolumeManager *vm;
@@ -219,13 +221,9 @@ static int process_config(VolumeManager *vm) {
     bool has_adoptable = false;
     for (int i = 0; i < fstab->num_entries; i++) {
         if (fs_mgr_is_voldmanaged(&fstab->recs[i])) {
-            if (fs_mgr_is_nonremovable(&fstab->recs[i])) {
-                LOG(WARNING) << "nonremovable no longer supported; ignoring volume";
-                continue;
-            }
-
             std::string sysPattern(fstab->recs[i].blk_device);
             std::string nickname(fstab->recs[i].label);
+            int partnum = fstab->recs[i].partnum;
             int flags = 0;
 
             if (fs_mgr_is_encryptable(&fstab->recs[i])) {
@@ -236,9 +234,12 @@ static int process_config(VolumeManager *vm) {
                     || property_get_bool("vold.debug.default_primary", false)) {
                 flags |= android::vold::Disk::Flags::kDefaultPrimary;
             }
+            if (fs_mgr_is_nonremovable(&fstab->recs[i])) {
+                flags |= android::vold::Disk::Flags::kNonRemovable;
+            }
 
             vm->addDiskSource(std::shared_ptr<VolumeManager::DiskSource>(
-                    new VolumeManager::DiskSource(sysPattern, nickname, flags)));
+                    new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags)));
         }
     }
     property_set("vold.has_adoptable", has_adoptable ? "1" : "0");

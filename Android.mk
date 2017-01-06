@@ -8,8 +8,10 @@ common_src_files := \
 	NetlinkManager.cpp \
 	NetlinkHandler.cpp \
 	Process.cpp \
+	fs/Exfat.cpp \
 	fs/Ext4.cpp \
 	fs/F2fs.cpp \
+	fs/Ntfs.cpp \
 	fs/Vfat.cpp \
 	Loop.cpp \
 	Devmapper.cpp \
@@ -19,6 +21,7 @@ common_src_files := \
 	VoldUtil.c \
 	cryptfs.c \
 	Disk.cpp \
+	DiskPartition.cpp \
 	VolumeBase.cpp \
 	PublicVolume.cpp \
 	PrivateVolume.cpp \
